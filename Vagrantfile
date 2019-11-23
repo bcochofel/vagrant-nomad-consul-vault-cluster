@@ -15,7 +15,7 @@ NOMAD_VERSION = "0.10.0"
 VAULT_VERSION = "1.2.3"
 
 # Telegraf version
-TELEGRAF_VERSION = "1.12.4"
+TELEGRAF_VERSION = "1.12.6"
 
 # Cluster Servers
 servers = [
