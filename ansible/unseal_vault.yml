@@ -1,0 +1,19 @@
+---
+- hosts: vault_instances
+  become: true
+  serial: 1
+  vars:
+    unseal_keys_dir_output: "./unseal_keys"
+    root_token_dir_output: "./root_token"
+  tasks:
+    - name: Reading unseal key contents
+      command: cat {{ item }}
+      register: unseal_keys
+      with_fileglob: "{{ unseal_keys_dir_output }}/*"
+      delegate_to: localhost
+    - name: Unseal vault with unseal keys
+      command: |
+        vault operator unseal {{ item.stdout }}
+      environment:
+        VAULT_ADDR: "http://127.0.0.1:8200"
+      with_items: "{{unseal_keys.results}}"

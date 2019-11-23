@@ -1,0 +1,8 @@
+---
+- hosts: all
+  become: true
+  vars:
+    docker_users:
+      - vagrant
+  roles:
+    - { role: geerlingguy.docker, tags: ['docker'] }

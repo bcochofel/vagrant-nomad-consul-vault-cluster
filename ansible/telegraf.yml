@@ -1,0 +1,39 @@
+---
+- hosts: all
+  become: true
+  roles:
+    - { role: dj-wasabi.telegraf, tags: ['telegraf'] }
+  vars:
+    telegraf_plugins_default:
+      - plugin: cpu
+        config:
+          - percpu = true
+      - plugin: disk
+      - plugin: diskio
+      - plugin: io
+      - plugin: kernel
+      - plugin: kernel_vmstat
+      - plugin: mem
+      - plugin: net
+      - plugin: system
+      - plugin: swap
+      - plugin: netstat
+    telegraf_agent_output:
+      - type: prometheus_client
+        config:
+          - listen = ":9273"
+  tasks:
+    - name: Add telegraf user do docker group
+      user:
+        name: telegraf
+        groups: docker
+        append: yes
+    - name: Register telegraf exporter to prometheus service
+      consul:
+        service_name: telegraf
+        service_port: 9273
+        tags:
+          - prometheus
+        http: http://localhost:9273/metrics
+        interval: 10s
+        timeout: 2s

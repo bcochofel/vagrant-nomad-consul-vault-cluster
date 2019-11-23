@@ -1,0 +1,15 @@
+---
+- hosts: all
+  become: true
+  roles:
+    - { role: cloudalchemy.node-exporter, tags: ['node_exporter'] }
+  tasks:
+    - name: Register node exporter service on consul
+      consul:
+        service_name: node-exporter
+        service_port: 9100
+        tags:
+          - prometheus
+        http: http://localhost:9100/
+        interval: 10s
+        timeout: 2s

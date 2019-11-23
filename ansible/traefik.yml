@@ -1,0 +1,28 @@
+---
+- hosts: traefik_instances
+  become: true
+  vars:
+    traefik_bind_ip: "{{ ansible_eth1.ipv4.address }}"
+    traefik_consul_master: "consul.service.consul"
+  post_tasks:
+    - name: Copy Traefik Config File
+      template:
+        src: templates/traefik.toml.j2
+        dest: /etc/traefik.toml
+  roles:
+    - { role: kibatic.traefik, tags: ['traefik'] }
+  tasks:
+    - name: Register traefik metrics service
+      consul:
+        service_name: traefik-metrics
+        service_port: 8081
+        tags:
+          - prometheus
+        http: http://localhost:8500/
+        interval: 15s
+        timeout: 10s
+    - name: Restart traefik
+      service:
+        name: traefik
+        state: restarted
+        enabled: yes

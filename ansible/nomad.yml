@@ -1,0 +1,12 @@
+---
+- hosts: nomad_instances
+  become: true
+  roles:
+    - { role: brianshumate.nomad, tags: ['docker', 'nomad'] }
+  vars:
+    nomad_config_custom:
+      telemetry:
+        publish_allocation_metrics: true
+        publish_node_metrics: true
+        disable_hostname: true
+        prometheus_metrics: true

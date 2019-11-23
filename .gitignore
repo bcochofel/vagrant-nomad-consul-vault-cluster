@@ -1,0 +1,3 @@
+ansible/roles/
+ansible/root_token/
+ansible/unseal_keys/

@@ -1,0 +1,8 @@
+---
+- hosts: vault_instances
+  become: true
+  vars:
+    vault_telemetry_enabled: true
+    vault_telemetry_disable_hostname: true
+  roles:
+    - { role: brianshumate.vault, tags: ['vault'] }

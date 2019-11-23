@@ -1,0 +1,132 @@
+---
+- hosts: servers
+  tasks:
+    - name: Add env var for vault to bashrc
+      lineinfile:
+        path: /home/vagrant/.bashrc
+        regex: '^export VAULT_ADDR'
+        line: 'export VAULT_ADDR=http://{{ ansible_eth1.ipv4.address }}:8200'
+
+    - name: Add env var for nomad to bashrc
+      lineinfile:
+        path: /home/vagrant/.bashrc
+        regex: '^export NOMAD_ADDR'
+        line: 'export NOMAD_ADDR=http://{{ ansible_eth1.ipv4.address }}:4646'
+
+- hosts: all
+  become: true
+  tasks:
+    - name: Install dnsmasq under Debian based OS
+      block:
+        - name: Remove systemd-resolved service
+          service:
+            name: systemd-resolved
+            state: stopped
+            enabled: no
+        - name: Create new /etc/resolv.conf
+          copy:
+            content: |
+              nameserver 8.8.8.8
+            dest: "/etc/resolv.conf"
+        - name: Install dnsmasq on Debian based OS
+          apt:
+            name: dnsmasq
+            state: present
+            update_cache: true
+            force: yes
+      when: ansible_os_family == 'Debian'
+
+    - name: Install dnsmasq under RedHat based OS
+      block:
+        - name: Install dnsmasq on RedHat based OS
+          yum:
+            name: dnsmasq
+            state: present
+      when: ansible_os_family == 'RedHat'
+
+    - name: Forward DNS lookup of the 'consul' domain
+      copy:
+        content: |
+          # Enable forward lookup of the 'consul' domain
+          server=/consul/127.0.0.1#8600
+          resolv-file=/etc/resolv.dnsmasq
+          cache-size=1000
+          no-poll
+        dest: "/etc/dnsmasq.conf"
+        backup: yes
+
+    - name: Create new /etc/resolv.dnsmasq
+      copy:
+        content: |
+          nameserver 8.8.8.8
+          nameserver 8.8.4.4
+        dest: "/etc/resolv.dnsmasq"
+
+    - name: Create new /etc/resolv.conf
+      copy:
+        content: |
+          nameserver 127.0.0.1
+        dest: "/etc/resolv.conf"
+
+    - name: Make /etc/resolv.conf persistent on Debina OS
+      command: chattr +i /etc/resolv.conf
+      when: ansible_os_family == 'RedHat'
+
+    - name: Add user vagrant to docker group
+      user:
+        name: vagrant
+        groups: docker
+        append: yes
+
+    - name: Restart consul
+      service:
+        name: consul
+        state: restarted
+
+    - name: Restart dnsmasq
+      service:
+        name: dnsmasq
+        state: restarted
+        enabled: yes
+
+- hosts: server-1
+  become: true
+  vars:
+    unseal_keys_dir_output: "./unseal_keys"
+    root_token_dir_output: "./root_token"
+  tasks:
+    - name: Restart traefik service
+      service:
+        name: traefik
+        state: restarted
+    - name: Create unseal directories
+      file:
+        path: "{{ unseal_keys_dir_output }}"
+        state: directory
+      delegate_to: localhost
+    - name: Create root key directories
+      file:
+        path: "{{ root_token_dir_output }}"
+        state: directory
+      delegate_to: localhost
+    - name: Initialise Vault operator
+      command: vault operator init -key-shares=5 -key-threshold=3 -format json
+      args:
+        creates: "{{ unseal_keys_dir_output }}/unseal_key_0"
+      environment:
+        VAULT_ADDR: "http://server-1:8200"
+      register: vault_init_results
+    - name: Parse output of vault init
+      set_fact:
+        vault_init_parsed: "{{ vault_init_results.stdout | from_json }}"
+    - name: Write unseal keys to files
+      copy:
+        dest: "{{ unseal_keys_dir_output }}/unseal_key_{{ item.0 }}"
+        content: "{{ item.1 }}"
+      with_indexed_items: "{{ vault_init_parsed.unseal_keys_hex }}"
+      delegate_to: localhost
+    - name: Write root token to file
+      copy:
+        content: "{{ vault_init_parsed.root_token }}"
+        dest: "{{root_token_dir_output}}/rootkey"
+      delegate_to: localhost
